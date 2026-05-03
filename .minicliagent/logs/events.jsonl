@@ -1,0 +1,31 @@
+{"ts": 1777299808.186817, "event": "tool_call", "payload": {"name": "list_skills", "session_id": "default"}}
+{"ts": 1777300442.3560882, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300442.388557, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300452.024485, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300452.048192, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300461.5260742, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777300461.5290308, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300474.184789, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777300474.1877382, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777300483.66492, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301766.4614139, "event": "tool_call", "payload": {"name": "load_skill", "session_id": "default"}}
+{"ts": 1777301766.4627478, "event": "skill_loaded", "payload": {"name": "code-review"}}
+{"ts": 1777301827.186343, "event": "tool_call", "payload": {"name": "load_skill", "session_id": "default"}}
+{"ts": 1777301827.18765, "event": "skill_loaded", "payload": {"name": "code-review"}}
+{"ts": 1777301827.192209, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301837.751374, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301837.790349, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301844.940521, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301844.965732, "event": "tool_call", "payload": {"name": "bash", "session_id": "default"}}
+{"ts": 1777301851.1163259, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301851.123557, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301851.129555, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301851.1336992, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301856.428434, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301856.436151, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301856.441639, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301856.446261, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301862.9236548, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301862.927052, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301862.931134, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777301862.93454, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}

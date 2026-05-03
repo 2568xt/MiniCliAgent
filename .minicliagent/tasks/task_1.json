@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "subject": "User test task",
+  "description": "Verify task flow",
+  "status": "pending",
+  "owner": "",
+  "priority": "normal",
+  "blocked_by": [],
+  "labels": [],
+  "worktree": ""
+}

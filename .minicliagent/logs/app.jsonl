@@ -1,0 +1,31 @@
+{"ts": 1777299808.186985, "level": "info", "message": "tool_call", "tool": "list_skills", "session_id": "default"}
+{"ts": 1777300442.35639, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300442.3886101, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300452.024815, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300452.048277, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300461.526529, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777300461.5291278, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300474.1852648, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777300474.187833, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777300483.665149, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301766.461813, "level": "info", "message": "tool_call", "tool": "load_skill", "session_id": "default"}
+{"ts": 1777301766.462847, "level": "info", "message": "skill_loaded", "skill": "code-review"}
+{"ts": 1777301827.186901, "level": "info", "message": "tool_call", "tool": "load_skill", "session_id": "default"}
+{"ts": 1777301827.187831, "level": "info", "message": "skill_loaded", "skill": "code-review"}
+{"ts": 1777301827.1923368, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301837.751776, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301837.790466, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301844.9407392, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301844.96589, "level": "info", "message": "tool_call", "tool": "bash", "session_id": "default"}
+{"ts": 1777301851.116498, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301851.123687, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301851.129642, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301851.133766, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301856.428679, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301856.4362738, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301856.4417331, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301856.446334, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301862.923968, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301862.927109, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301862.9311879, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}
+{"ts": 1777301862.934606, "level": "info", "message": "tool_call", "tool": "read_file", "session_id": "default"}

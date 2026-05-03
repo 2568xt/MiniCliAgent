@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "Reply with OK only."
+  },
+  {
+    "role": "assistant",
+    "content": "OK"
+  }
+]

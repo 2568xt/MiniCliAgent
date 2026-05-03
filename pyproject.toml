@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minicliagent"
+version = "0.1.0"
+description = "Industrial local CLI coding agent harness"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "anthropic>=0.25.0",
+  "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["minicliagent*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
