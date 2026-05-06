@@ -20,10 +20,16 @@ env/
 .DS_Store
 Thumbs.db
 
-# IDE
+# IDE / editor config
 .vscode/
 .idea/
 .cursor/
+.claude/
+
+# Personal / not open source
+/resume.md
+/docs/resume/
+/skills/resume-writer/
 
 # Local runtime data
 .minicliagent/
