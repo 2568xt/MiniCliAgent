@@ -16,10 +16,12 @@ class ContextManager:
         self.tool_result_max_chars = tool_result_max_chars
         self.text_message_max_chars = text_message_max_chars
         self.history_max_messages = history_max_messages
+        self.last_history_overflow_count = 0
 
     def prepare_messages(self, messages: list[dict], working_memory: dict | None = None) -> list[dict]:
         prepared = deepcopy(messages)
         tool_result_indices: list[int] = []
+        self.last_history_overflow_count = 0
 
         for index, message in enumerate(prepared):
             content = message.get("content")
@@ -43,6 +45,7 @@ class ContextManager:
 
         if self.history_max_messages is not None and len(prepared) > self.history_max_messages:
             overflow = len(prepared) - self.history_max_messages
+            self.last_history_overflow_count = overflow
             prepared = [
                 {
                     "role": "user",

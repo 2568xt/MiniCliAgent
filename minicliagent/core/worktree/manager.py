@@ -8,6 +8,9 @@ from minicliagent.core.worktree.models import WorktreeRecord
 
 
 def detect_repo_root(cwd: Path) -> Path | None:
+    git_dir = cwd / ".git"
+    if git_dir.exists():
+        return cwd
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=cwd,

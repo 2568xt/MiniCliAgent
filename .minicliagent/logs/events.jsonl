@@ -29,3 +29,27 @@
 {"ts": 1777301862.927052, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
 {"ts": 1777301862.931134, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
 {"ts": 1777301862.93454, "event": "tool_call", "payload": {"name": "read_file", "session_id": "default"}}
+{"ts": 1777915142.1929228, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-011821"}}
+{"ts": 1777915692.368096, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-011821"}}
+{"ts": 1777915692.371381, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-011821"}}
+{"ts": 1777915738.492788, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-011821"}}
+{"ts": 1777916614.460906, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014323"}}
+{"ts": 1777916713.223551, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014503"}}
+{"ts": 1777916735.374698, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014503"}}
+{"ts": 1777916754.594997, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014503"}}
+{"ts": 1777916878.5929081, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014503"}}
+{"ts": 1777917058.828981, "event": "tool_call", "payload": {"name": "task_create", "session_id": "20260505-014905"}}
+{"ts": 1777917072.570979, "event": "tool_call", "payload": {"name": "background_run", "session_id": "20260505-014905"}}
+{"ts": 1777917072.577127, "event": "background_started", "payload": {"task_id": "8e820d3d", "command": "cd /tmp && mkdir -p research_agent && cd research_agent && cat > agent_loop.sh << 'EOF'\n#!/bin/bash\nwhile true; do\n  echo \"调研Agent运行中...\"\n  sleep 10\ndone\nEOF\nchmod +x agent_loop.sh\n./agent_loop.sh &\necho \"调研Agent已启动 (PID: $!)\""}}
+{"ts": 1777917125.329966, "event": "tool_call", "payload": {"name": "background_check", "session_id": "20260505-014905"}}
+{"ts": 1777917131.1929889, "event": "tool_call", "payload": {"name": "bash", "session_id": "20260505-014905"}}
+{"ts": 1777917133.406983, "event": "background_finished", "payload": {"task_id": "8e820d3d", "status": "completed"}}
+{"ts": 1777917139.114553, "event": "tool_call", "payload": {"name": "background_run", "session_id": "20260505-014905"}}
+{"ts": 1777917139.1196, "event": "background_started", "payload": {"task_id": "8d79d7c5", "command": "cd /tmp && mkdir -p research_agent && cd research_agent && cat > research.sh << 'EOF'\n#!/bin/bash\necho \"=== 调研Agent启动 ===\"\necho \"主题: Quveris AI 公司调研\"\necho \"开始搜集资料...\"\n\n# 模拟搜集过程 (等待约60秒)\nfor i in {1..6}; do\n  echo \"[$i/6] 正在搜集信息...\"\n  sleep 10\ndone\n\necho \"\"\necho \"=== 调研完成 ===\"\nEOF\nchmod +x research.sh\n./research.sh &\necho \"调研Agent已启动\""}}
+{"ts": 1777917147.242291, "event": "tool_call", "payload": {"name": "bash", "session_id": "20260505-014905"}}
+{"ts": 1777917166.6283772, "event": "tool_call", "payload": {"name": "background_check", "session_id": "20260505-014905"}}
+{"ts": 1777917170.031609, "event": "tool_call", "payload": {"name": "bash", "session_id": "20260505-014905"}}
+{"ts": 1777917199.827977, "event": "background_finished", "payload": {"task_id": "8d79d7c5", "status": "completed"}}
+{"ts": 1777917210.105592, "event": "tool_call", "payload": {"name": "task_update", "session_id": "20260505-014905"}}
+{"ts": 1777917356.8067951, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-014905"}}
+{"ts": 1777917402.062046, "event": "tool_call", "payload": {"name": "memory_search", "session_id": "20260505-015626"}}

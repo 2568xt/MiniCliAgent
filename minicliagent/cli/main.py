@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import inspect
 import sys
+from datetime import datetime
+from pathlib import Path
 from typing import TextIO
 
 from minicliagent.app.agent_service import create_agent_service
@@ -25,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser("run", help="Send one prompt or start an interactive session.")
     run_parser.add_argument("--prompt")
-    run_parser.add_argument("--session", default="default")
+    run_parser.add_argument("--session")
 
     tasks_parser = subparsers.add_parser("tasks", help="Manage persistent tasks.")
     tasks_subparsers = tasks_parser.add_subparsers(dest="tasks_command", required=True)
@@ -75,19 +77,27 @@ def main(
     try:
         service = create_agent_service()
         if args.command == "run":
+            session_id = args.session or _generate_session_id(service.settings.sessions_dir)
+            if args.session is None:
+                print(f"Session: {session_id}", file=stdout)
             if args.prompt is not None:
-                _handle_run_prompt(service, args.prompt, args.session, stdout)
+                _handle_run_prompt(service, args.prompt, session_id, stdout)
             else:
-                while True:
-                    try:
-                        prompt = input("> ").strip()
-                    except EOFError:
-                        break
-                    if not prompt:
-                        continue
-                    if prompt in {"exit", "quit"}:
-                        break
-                    _handle_run_prompt(service, prompt, args.session, stdout)
+                try:
+                    while True:
+                        try:
+                            prompt = input("> ").strip()
+                        except EOFError:
+                            break
+                        if not prompt:
+                            continue
+                        if prompt in {"exit", "quit"}:
+                            break
+                        _handle_run_prompt(service, prompt, session_id, stdout)
+                finally:
+                    finalize_session = getattr(service, "finalize_session", None)
+                    if finalize_session is not None:
+                        finalize_session(session_id)
         elif args.command == "tasks":
             if args.tasks_command == "create":
                 task = service.task_service.create_task(args.subject, args.description)
@@ -154,6 +164,21 @@ def _handle_run_prompt(service, prompt: str, session_id: str, stdout: TextIO) ->
         return
     if output:
         print(output, file=stdout)
+
+
+def _generate_session_id(sessions_dir: Path) -> str:
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    base = datetime.now().strftime("%Y%m%d-%H%M%S")
+    suffix = 1
+
+    while True:
+        session_id = base if suffix == 1 else f"{base}-{suffix}"
+        try:
+            with (sessions_dir / f"{session_id}.json").open("x", encoding="utf-8") as handle:
+                handle.write("[]")
+            return session_id
+        except FileExistsError:
+            suffix += 1
 
 
 def _invoke_run_prompt(service, prompt: str, session_id: str, on_text_delta) -> str:

@@ -62,8 +62,9 @@ python -m minicliagent.cli.main worktree list
 
 说明：
 
-- `run --prompt "..."`：执行单轮请求
-- `run`：直接进入交互模式，输入 `quit` 或 `exit` 退出
+- `run --prompt "..."`：执行单轮请求；未指定 `--session` 时，会按启动时间生成会话名，例如 `20260504-013245`，同秒撞名时追加 `-2`
+- `run`：直接进入交互模式，同一次启动内复用同一个自动会话名，输入 `quit` 或 `exit` 退出
+- `run --session <name>`：继续写入指定会话
 
 ## 测试
 

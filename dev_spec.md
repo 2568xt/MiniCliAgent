@@ -42,6 +42,7 @@ MiniCLIAgent 是一个面向本地开发环境的 Python CLI Agent 项目。
 3. 支持 `skills / tasks / team / worktree / background tasks`
 4. 支持会话消息持久化与上下文压缩
 5. 支持在本地 git 仓库中进行 task 与 worktree 绑定
+6. 支持本地长期记忆，并通过 agent 可控的工具检索跨会话信息
 
 ### 3.2 工程目标
 
@@ -60,6 +61,9 @@ MiniCLIAgent 是一个面向本地开发环境的 Python CLI Agent 项目。
 4. 企业级权限系统
 5. 分布式任务调度
 6. 持续常驻的 daemon / cron 系统
+7. Honcho 或其他重型外部记忆服务
+8. 每轮对话原文的无选择自动长期写入
+9. 作为独立平台完整托管/编排 MCP 服务器生命周期
 
 ## 5. 总体架构
 
@@ -157,6 +161,7 @@ flowchart TD
     TOOLS --> BG[background_run / background_check]
     TOOLS --> TEAM[team_send / team_inbox]
     TOOLS --> WT[worktree_create / worktree_list]
+    TOOLS --> MEM[memory_search]
 
     RT --> EVENTS[EventBus / Logger / Transcript]
     APP --> STATE[.minicliagent state root]
@@ -164,6 +169,7 @@ flowchart TD
     STATE --> TASKDIR[tasks/]
     STATE --> TEAMDIR[team/]
     STATE --> WTDIR[worktrees/]
+    STATE --> MEMORY[memory.md / memory/ / memory_index/]
     STATE --> LOGDIR[logs/]
 ```
 
@@ -178,8 +184,9 @@ flowchart TD
 5. `AnthropicProvider` 发起模型请求
 6. 如果模型请求工具，则通过 `ToolRegistry` 执行
 7. 工具结果回写到 session
-8. transcript、events、logs 落盘
-9. 返回最终文本给 CLI
+8. 如果模型需要跨会话信息，可主动调用 `memory_search`
+9. transcript、events、logs 落盘
+10. 返回最终文本给 CLI
 
 ## 7. 核心模块规格
 
@@ -195,6 +202,7 @@ flowchart TD
 - 写入消息存储
 - 注入 background 通知
 - 记录 loaded skills 与 working memory
+- 在上下文压缩或交互退出时触发长期记忆总结 hook
 - 输出最终 turn 结果
 
 约束：
@@ -202,6 +210,7 @@ flowchart TD
 - 不直接处理 CLI 参数
 - 不直接操作 git
 - 不直接知道 `.env` 的细节
+- 不直接依赖 mem0 SDK，应通过 memory service/provider 边界调用
 
 ### 7.2 LLM Provider
 
@@ -214,12 +223,19 @@ flowchart TD
 - 支持 tool schema 下发
 - 支持 Anthropic 兼容接口
 - 对已知兼容网关做必要的 URL 归一化
+- 支持通过配置接入 MCP 服务器，并将其暴露为可调用工具来源
+- 支持多 MCP 服务器并存接入
+- MCP 服务器可通过 stdio 等明确可控的本地连接方式接入
+- MCP 接入应采用适配层设计，不改变主 provider 的统一请求/响应接口
+- MCP 服务器连接失败、超时或不可用时，应降级为仅保留本地内置工具，不中断主运行时
+- MCP 工具发现结果应转换为统一的 `ToolSpec`，再进入 registry 与 provider adapter
 
 设计原则：
 
 - 先把 Anthropic-first 路径做好
 - 保留 provider adapter 边界
 - 不为了“未来也许会支持很多家”而提前过度抽象
+- MCP 只作为工具扩展面，不作为 agent 主循环的运行时核心依赖
 
 ### 7.3 ToolRegistry
 
@@ -230,12 +246,17 @@ flowchart TD
 - 注册 `ToolSpec`
 - 提供工具列表给 provider adapter
 - 执行工具并返回 `ToolResult`
+- 聚合本地内置工具与外部 MCP 服务器暴露的工具
 
 要求：
 
 - 工具声明必须显式包含 `name / description / input_schema / handler`
 - 工具扩展应尽量只通过注册完成
 - 内置工具应按职责拆分到 `core/tools/builtins/`
+- MCP 工具应在注册层完成命名空间隔离、冲突检测与可用性标记
+- MCP 工具名应支持服务器前缀或命名空间前缀，避免与内置工具冲突
+- 外部 MCP 工具不可直接绕过 registry 进入 runtime 执行链路
+- MCP 工具调用应支持按服务器粒度启停与禁用
 
 ### 7.4 ContextManager
 
@@ -333,6 +354,87 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - 非 git 工作区下要返回可读错误
 - 不应把 git 原生命令输出直接泄漏给最终用户
 
+### 7.10 Memory System
+
+memory 系统负责跨会话长期记忆。
+
+第一版后端选择：
+
+- 使用本地 mem0 OSS 作为 dense 检索索引能力
+- 不接入 Honcho
+- 不提供多记忆后端切换 UI
+
+数据原则：
+
+- 采用 Markdown-first
+- `.minicliagent/memory.md` 是长期记忆汇总文件
+- `.minicliagent/memory/` 保存每次 hook 生成的会话记忆片段
+- `.minicliagent/memory_index/` 保存 mem0、SQLite 或其他检索索引派生状态
+- Markdown 文件是真实数据源，索引损坏时应能从 Markdown 重建
+
+读取要求：
+
+- 注册 `memory_search` 工具
+- agent 自己判断什么时候调用 `memory_search`
+- runtime 不应每轮自动把长期记忆注入上下文
+- system prompt 可以轻量提示：需要跨会话信息时先查长期记忆
+
+写入要求：
+
+- 在上下文压缩时触发 `compact_hook`
+- 在交互式 `run` 退出时触发 `exit_hook`
+- hook 应让 agent/provider 总结本次会话中值得长期保存的事实、偏好和项目约定
+- 如果 hook 判断没有值得记住的内容，不写入
+- 写入自动追加，不要求用户交互确认
+- 写入内容不应是原始 transcript dump
+- 写入前应做基础文本去重，避免明显重复条目
+
+混合检索要求：
+
+- dense 检索使用 mem0 或其本地向量索引，取 `dense_top_k = 4`
+- BM25 检索扫描 `.minicliagent/memory.md` 与 `.minicliagent/memory/*.md`，取 `bm25_top_k = 4`
+- 对 dense 与 BM25 的分数分别进行查询内归一化
+- dense 与 BM25 的候选集合并去重
+- 只被一路命中的结果，另一路归一化分数按 `0` 处理
+- 融合分数公式为 `0.3 * normalized_bm25 + 0.7 * normalized_dense`
+- 最终按融合分数排序，取 `final_top_k = 6`
+- 返回结果应包含来源、内容摘要、原始分数、归一化分数和融合分数
+
+归一化约束：
+
+- 默认使用查询内 min-max 归一化到 `0..1`
+- 如果某一路所有命中分数相同，则该路命中的候选归一化为 `1`
+- 未命中的候选归一化为 `0`
+
+降级要求：
+
+- mem0 或 dense index 不可用时，应降级到 BM25 检索
+- BM25 不可用或记忆文件不存在时，应返回空结果而不是中断 agent 主链路
+- 降级事件应写入 event/log，用户可见错误保持简洁
+
+配置要求：
+
+- `MINICLIAGENT_MEMORY_ENABLED`：默认 `1`
+- `MINICLIAGENT_MEMORY_DENSE_WEIGHT`：默认 `0.7`
+- `MINICLIAGENT_MEMORY_BM25_WEIGHT`：默认 `0.3`
+- `MINICLIAGENT_MEMORY_DENSE_TOP_K`：默认 `4`
+- `MINICLIAGENT_MEMORY_BM25_TOP_K`：默认 `4`
+- `MINICLIAGENT_MEMORY_FINAL_TOP_K`：默认 `6`
+
+设计原则：
+
+- memory 系统应通过 `MemoryService` / provider 边界接入 runtime
+- `AgentRuntime` 不直接读写 Markdown 文件
+- `ToolRegistry` 只负责暴露 `memory_search` 工具
+- 第一版优先实现可读、可测、可降级的本地记忆闭环
+
+实现收尾要求：
+
+- CLI 记忆链路测试应尽量覆盖真实 `create_agent_service` 组装路径，而不只依赖纯 mock service
+- 记忆摘要在外部 provider 不可用时应具备本地或降级策略，避免离线环境导致 exit/compact hook 整体失败
+- `memory_search` 的降级、命中与排序行为应保留足够诊断信息，便于排查 dense / BM25 / hybrid 结果差异
+- 记忆系统的测试说明与设计约束需要与实现保持同步更新
+
 ## 8. 状态目录约定
 
 所有本地状态统一放在 `.minicliagent/` 下。
@@ -345,7 +447,10 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 ├─ tasks/
 ├─ team/
 ├─ worktrees/
-└─ logs/
+├─ logs/
+├─ memory.md
+├─ memory/
+└─ memory_index/
 ```
 
 说明：
@@ -355,6 +460,9 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - `team/` 保存本地消息与 inbox 数据
 - `worktrees/` 保存 worktree 元数据
 - `logs/` 保存事件、结构化日志和 transcript
+- `memory.md` 保存长期记忆汇总
+- `memory/` 保存按 hook/session 切分的长期记忆片段
+- `memory_index/` 保存可重建的检索索引派生状态
 
 ## 9. 仓库结构要求
 
@@ -387,6 +495,7 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - tasks
 - team
 - worktree
+- memory store / BM25 / hybrid ranker
 - logging / transcript
 
 ### 10.2 Integration Tests
@@ -397,6 +506,10 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - runtime tool loop
 - state 持久化
 - runtime 与事件/日志联动
+- `memory_search` 工具链路
+- 交互退出和上下文压缩的 memory hook
+- 多 session 记忆评估数据集
+- CLI 真实记忆写入/退出链路
 
 ### 10.3 Live Tests
 
@@ -427,7 +540,41 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - 让实现状态可追踪
 - 让测试结果可复盘
 
-## 12. 设计约束
+## 12. MCP 接入约束
+
+MCP 接入只作为工具扩展能力，不改变本项目的主定位与运行范式。
+
+接入要求：
+
+1. 支持通过配置声明一个或多个 MCP 服务器
+2. 支持多服务器并存接入与独立管理
+3. 支持 stdio 等明确可控的本地连接方式优先
+4. 支持启动时发现 MCP 工具并转换为本地 `ToolSpec`
+5. 支持工具命名空间前缀，避免与内置工具冲突
+6. 支持 MCP 服务器健康检查、连接重试与降级关闭
+7. 支持按服务器粒度启用/禁用
+8. 支持记录 MCP 工具调用日志、错误日志与健康状态
+9. 支持在运行时列出可用 MCP 工具，但不强制自动调用
+10. 支持对单个 MCP 工具设置超时与最大返回大小限制
+11. 支持在配置或启动失败时给出简洁可读错误
+12. 支持在连接失败、超时或断连后自动降级到本地工具集合
+
+不支持的内容：
+
+- 不在本项目中实现完整 MCP host 平台
+- 不负责统一托管远端 MCP 服务器生命周期
+- 不把 MCP 工具接入做成必须依赖
+- 不把 MCP 连接失败视为主 agent 不可运行的条件
+- 不要求 agent 在每轮推理中自动刷新 MCP 工具列表
+
+## 13. 设计约束
+
+1. 不为了“未来可能需要”而提前引入重抽象
+2. 默认优先可读性和可验证性
+3. 新增功能优先沿用现有分层与模式
+4. 用户可见错误必须尽量简洁、明确
+5. 参考实现不等于原型代码，仍需保持工程纪律
+6. MCP 相关实现必须保持可降级、可关闭、可诊断
 
 本项目后续演进应遵守以下约束：
 

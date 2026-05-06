@@ -32,6 +32,7 @@ class AgentRuntime:
         event_bus: EventBus | None = None,
         logger: JsonLogger | None = None,
         transcript_recorder: TranscriptRecorder | None = None,
+        memory_service=None,
     ) -> None:
         self.provider = provider
         self.tool_registry = tool_registry
@@ -42,8 +43,10 @@ class AgentRuntime:
         self.event_bus = event_bus
         self.logger = logger
         self.transcript_recorder = transcript_recorder
+        self.memory_service = memory_service
         self.loaded_skills: dict[str, list[str]] = {}
         self.session_state: dict[str, dict] = {}
+        self._memory_compact_overflows: dict[str, int] = {}
 
     def run_turn(
         self,
@@ -78,10 +81,15 @@ class AgentRuntime:
                 working_memory = dict(working_memory)
                 working_memory["loaded_skills"] = self.loaded_skills[session_id]
             prepared_messages = self.context_manager.prepare_messages(messages, working_memory=working_memory)
+            self._maybe_record_compacted_memory(session_id, messages)
             response = _invoke_provider(
                 self.provider,
                 ModelRequest(
-                    system=_build_system_prompt(self.system_prompt, working_memory),
+                    system=_build_system_prompt(
+                        self.system_prompt,
+                        working_memory,
+                        memory_enabled=self.memory_service is not None,
+                    ),
                     messages=prepared_messages,
                     tools=tool_specs_to_anthropic(self.tool_registry.list_specs()),
                     max_tokens=4096,
@@ -122,6 +130,21 @@ class AgentRuntime:
                 if self.transcript_recorder is not None:
                     self.transcript_recorder.record(session_id, messages)
 
+    def _maybe_record_compacted_memory(self, session_id: str, messages: list[dict]) -> None:
+        if self.memory_service is None:
+            return
+        overflow_count = getattr(self.context_manager, "last_history_overflow_count", 0)
+        if overflow_count <= 0:
+            return
+        if self._memory_compact_overflows.get(session_id) == overflow_count:
+            return
+        self._memory_compact_overflows[session_id] = overflow_count
+        try:
+            self.memory_service.remember_session(session_id, list(messages), "compact_hook")
+        except Exception:
+            if self.logger is not None:
+                self.logger.log("warning", "memory_compact_hook_failed", session_id=session_id)
+
 
 def _assistant_message_from_response(response) -> dict:
     if response.stop_reason != "tool_use":
@@ -142,10 +165,13 @@ def _assistant_message_from_response(response) -> dict:
     return {"role": "assistant", "content": content}
 
 
-def _build_system_prompt(base_prompt: str, working_memory: dict | None) -> str:
-    if not working_memory:
-        return base_prompt
-    return f"{base_prompt}\n\nWorking memory: {json.dumps(working_memory, ensure_ascii=False)}"
+def _build_system_prompt(base_prompt: str, working_memory: dict | None, memory_enabled: bool = False) -> str:
+    parts = [base_prompt]
+    if memory_enabled:
+        parts.append("When cross-session facts, user preferences, or project decisions may help, call memory_search.")
+    if working_memory:
+        parts.append(f"Working memory: {json.dumps(working_memory, ensure_ascii=False)}")
+    return "\n\n".join(parts)
 
 
 def _invoke_provider(provider, request: ModelRequest, on_text_delta: TextDeltaCallback | None) -> object:

@@ -37,6 +37,15 @@
 - [x] runtime 支持 session message 持久化
 - [x] runtime 事件流
 - [x] runtime 后台通知注入
+- [x] MCP 配置项与服务器声明结构
+- [x] MCP stdio 连接适配与会话初始化
+- [x] MCP 工具发现、转换为 `ToolSpec` 与注册
+- [x] MCP 工具命名空间前缀与冲突检测
+- [x] MCP 工具启停控制与按服务器粒度禁用
+- [x] MCP 连接失败 / 超时 / 断连降级策略
+- [x] MCP 工具调用日志、错误日志与健康检查
+- [x] MCP 单工具超时与最大返回大小限制
+- [x] MCP 调试与诊断信息输出
 
 ## 4. 工具系统
 
@@ -91,7 +100,31 @@
 - [x] 完整第三层：会话压缩策略
 - [x] 保留 working memory（task / skill / request_id / teammate 状态）
 
-## 8. CLI
+## 8. 记忆系统
+
+- [x] 建立 `core/memory/` 模块
+- [x] 建立 `MemoryService`
+- [x] 建立 Markdown-first memory store
+- [x] 建立 `.minicliagent/memory.md` 汇总文件写入逻辑
+- [x] 建立 `.minicliagent/memory/` 会话记忆片段写入逻辑
+- [x] 建立 `.minicliagent/memory_index/` 派生索引目录约定
+- [x] 接入本地 mem0 OSS 作为 dense 检索索引
+- [x] 建立 BM25 检索器
+- [x] 建立 hybrid ranker
+- [x] dense top-k 默认为 4
+- [x] BM25 top-k 默认为 4
+- [x] 融合排序公式为 `0.3 * normalized_bm25 + 0.7 * normalized_dense`
+- [x] final top-k 默认为 6
+- [x] 注册 `memory_search` 工具
+- [x] runtime system prompt 提示 agent 可主动查询长期记忆
+- [x] runtime 不每轮自动注入长期记忆
+- [x] 上下文压缩时触发 memory compact hook
+- [x] 交互式 `run` 退出时触发 memory exit hook
+- [x] hook 自动追加值得长期保存的记忆
+- [x] mem0 不可用时降级到 BM25
+- [x] 记忆功能关闭时不影响 `run` 主链路
+
+## 9. CLI
 
 - [x] 建立 `run` 命令
 - [x] `run` 支持 `--prompt`
@@ -104,7 +137,7 @@
 - [x] 建立 `team` 子命令
 - [x] 建立 `worktree` 子命令
 
-## 9. 后台任务
+## 10. 后台任务
 
 - [x] 建立 `BackgroundManager`
 - [x] 支持后台命令执行
@@ -112,7 +145,7 @@
 - [x] 支持结果 drain
 - [x] 支持查询后台任务状态
 
-## 10. Team / 多 Agent
+## 11. Team / 多 Agent
 
 - [x] 建立 message bus
 - [x] 建立 teammate manager
@@ -122,7 +155,7 @@
 - [x] 支持 `plan_approval_request / plan_approval_response`
 - [x] 支持 `task_claim / task_claim_result`
 
-## 11. Worktree
+## 12. Worktree
 
 - [x] 建立 repo root 检测
 - [x] 建立 worktree manager
@@ -131,7 +164,7 @@
 - [x] 支持在指定 worktree 执行命令
 - [x] 支持 worktree closeout
 
-## 12. 可观测性
+## 13. 可观测性
 
 - [x] 建立结构化日志
 - [x] 建立 transcript 持久化
@@ -139,7 +172,7 @@
 - [x] 建立 background task tracing
 - [x] 建立 worktree lifecycle events
 
-## 13. 测试
+## 14. 测试
 
 - [x] 建立 unit tests 基础盘
 - [x] 建立 integration tests 基础盘
@@ -150,8 +183,19 @@
 - [x] teammate protocol tests
 - [x] worktree tests
 - [x] Anthropic smoke test
+- [x] memory store tests
+- [x] BM25 检索 tests
+- [x] hybrid ranker tests
+- [x] `memory_search` tool tests
+- [x] memory hook integration tests
+- [x] memory disabled regression tests
+- [x] multi-session memory evaluation dataset test
+- [x] CLI memory flow integration test
+- [x] CLI 记忆链路尽量覆盖真实 `create_agent_service` 组装路径
+- [x] 记忆摘要 provider 不可用时的本地 fallback / 降级策略
+- [x] `memory_search` 降级与排序诊断信息增强
 
-## 14. 文档与收口
+## 15. 文档与收口
 
 - [x] 建立 `dev_spec.md`
 - [x] 建立 `code_spec.md`

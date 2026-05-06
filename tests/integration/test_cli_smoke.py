@@ -7,6 +7,16 @@ def test_cli_parser_accepts_prompt_argument() -> None:
 
     assert args.command == "run"
     assert args.prompt == "hello"
+    assert args.session is None
+
+
+def test_cli_parser_accepts_explicit_session_argument() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["run", "--prompt", "hello", "--session", "s1"])
+
+    assert args.command == "run"
+    assert args.prompt == "hello"
+    assert args.session == "s1"
 
 
 def test_cli_parser_allows_run_without_prompt() -> None:
