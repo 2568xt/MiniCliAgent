@@ -1,21 +1,21 @@
 from types import SimpleNamespace
 
-from minicliagent.core.llm.anthropic_provider import AnthropicProvider, _normalize_base_url
+from minicliagent.core.llm.anthropic_provider import AnthropicProvider, _normalize_minimax_base_url
 from minicliagent.core.llm.types import ModelRequest
 
 
 def test_normalize_minimax_v1_base_url() -> None:
-    assert _normalize_base_url("https://api.minimaxi.com/v1") == "https://api.minimaxi.com/anthropic"
+    assert _normalize_minimax_base_url("https://api.minimaxi.com/v1") == "https://api.minimaxi.com/anthropic"
 
 
 def test_normalize_minimax_anthropic_v1_base_url() -> None:
-    assert _normalize_base_url("https://api.minimaxi.com/anthropic/v1") == "https://api.minimaxi.com/anthropic"
+    assert _normalize_minimax_base_url("https://api.minimaxi.com/anthropic/v1") == "https://api.minimaxi.com/anthropic"
 
 
 def test_leave_other_provider_base_url_unchanged() -> None:
     base_url = "https://api.anthropic.com/v1"
 
-    assert _normalize_base_url(base_url) == base_url
+    assert _normalize_minimax_base_url(base_url) == base_url
 
 
 class FakeStream:

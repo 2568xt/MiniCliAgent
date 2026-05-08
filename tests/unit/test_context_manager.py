@@ -70,7 +70,7 @@ def test_context_manager_preserves_last_summary_message_when_compacting_history(
 
     assert len(compacted) == 4
     assert compacted[0]["role"] == "user"
-    assert "History compacted" in compacted[0]["content"]
+    assert "Truncated" in compacted[0]["content"]
 
 
 def test_context_manager_renders_working_memory_summary() -> None:

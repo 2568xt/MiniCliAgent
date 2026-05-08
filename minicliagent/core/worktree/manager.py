@@ -72,16 +72,21 @@ class WorktreeManager:
         records = self._load_index()
         for record in records:
             if record.name == name:
-                subprocess.run(
-                    ["git", "worktree", "remove", str(record.path), "--force"],
-                    cwd=self.repo_root,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                record.status = "closed"
+                try:
+                    subprocess.run(
+                        ["git", "worktree", "remove", str(record.path), "--force"],
+                        cwd=self.repo_root,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                    record.status = "closed"
+                    event_data = {"name": name, "keep_branch": keep_branch}
+                except Exception as e:
+                    record.status = "close_failed"
+                    event_data = {"name": name, "keep_branch": keep_branch, "error": str(e)}
                 if self.event_bus is not None:
-                    self.event_bus.emit("worktree_closed", {"name": name, "keep_branch": keep_branch})
+                    self.event_bus.emit("worktree_closed", event_data)
                 break
         self._save_index(records)
 

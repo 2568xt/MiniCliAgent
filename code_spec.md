@@ -14,7 +14,7 @@
 - [x] 建立正式 `pyproject.toml`
 - [x] 建立 `minicliagent/` 包
 - [x] 建立 `CLI / App / Core / Infra` 基础目录
-- [x] 建立 `.env.example`
+- [ ] 建立 `.env.example`
 - [x] 建立基础 `README.md`
 
 ## 2. 配置与状态目录
@@ -44,7 +44,7 @@
 - [x] MCP 工具启停控制与按服务器粒度禁用
 - [x] MCP 连接失败 / 超时 / 断连降级策略
 - [x] MCP 工具调用日志、错误日志与健康检查
-- [x] MCP 单工具超时与最大返回大小限制
+- [x] MCP 单工具超时与最大返回大小限制（截断时显示原始长度）
 - [x] MCP 调试与诊断信息输出
 
 ## 4. 工具系统
@@ -56,6 +56,8 @@
 - [x] 注册 `read_file`
 - [x] 注册 `write_file`
 - [x] 注册 `edit_file`
+- [x] `edit_file` 支持 `replace_all` 参数控制全局替换
+- [x] bash 工具集成危险命令检测与拦截（防 rm -rf /、fork bomb、sudo 等）
 - [x] 注册 `list_skills`
 - [x] 注册 `load_skill`
 - [x] 注册 `task_create`
@@ -72,6 +74,7 @@
 - [x] 建立本地 `SkillLoader`
 - [x] 支持 skill list
 - [x] 支持 skill load
+- [x] 支持 PyYAML 解析 SKILL.md frontmatter，安装不可用时回退手动解析
 - [x] 建立 `SkillService`
 - [x] skill matcher
 - [x] runtime 记录已加载 skill
@@ -97,7 +100,7 @@
 - [x] 支持长文本消息裁剪
 - [x] 完整第一层：工具结果裁剪策略
 - [x] 完整第二层：微压缩策略
-- [x] 完整第三层：会话压缩策略
+- [x] 完整第三层：会话压缩策略（含 tool call 摘要注入）
 - [x] 保留 working memory（task / skill / request_id / teammate 状态）
 
 ## 8. 记忆系统
@@ -122,6 +125,8 @@
 - [x] 交互式 `run` 退出时触发 memory exit hook
 - [x] hook 自动追加值得长期保存的记忆
 - [x] mem0 不可用时降级到 BM25
+- [x] mem0 初始化配置失败时回退 `Memory()` 空构造再降级
+- [x] `LocalMemorySummarizer` 关键词匹配使用词边界正则避免误命中
 - [x] 记忆功能关闭时不影响 `run` 主链路
 
 ## 9. CLI
@@ -147,7 +152,7 @@
 
 ## 11. Team / 多 Agent
 
-- [x] 建立 message bus
+- [x] 建立 message bus（含两阶段读取 + staging 崩溃保护 + ack 确认）
 - [x] 建立 teammate manager
 - [x] 建立协议消息类型
 - [x] 建立 `request_id` 关联机制
@@ -162,7 +167,7 @@
 - [x] 建立 worktree metadata 持久化
 - [x] 支持 task <-> worktree 绑定
 - [x] 支持在指定 worktree 执行命令
-- [x] 支持 worktree closeout
+- [x] 支持 worktree closeout（含异常处理与 close_failed 状态）
 
 ## 13. 可观测性
 
@@ -202,4 +207,4 @@
 - [x] 建立 foundation plan 文档
 - [x] README 完整 Quick Start 与架构说明
 - [x] `learn-claude-code` 与正式包边界清理
-- [x] 迁移到 `examples/` 或 `legacy/`
+- [x] 迁移到 `examples/learn-claude-code/`

@@ -65,11 +65,12 @@ class BackgroundManager:
             output = str(exc)
             status = "error"
 
-        task = self._tasks[task_id]
-        if task.status == "cancelled":
-            return
-        task.status = status
-        task.result = output[:50000]
+        with self._lock:
+            task = self._tasks[task_id]
+            if task.status == "cancelled":
+                return
+            task.status = status
+            task.result = output[:50000]
         if self.event_bus is not None:
             self.event_bus.emit("background_finished", {"task_id": task_id, "status": task.status})
         with self._lock:
@@ -89,9 +90,10 @@ class BackgroundManager:
         return list(self._tasks.values())
 
     def cancel(self, task_id: str) -> BackgroundTask:
-        task = self._tasks[task_id]
-        task.status = "cancelled"
-        task.result = "Cancelled by user"
+        with self._lock:
+            task = self._tasks[task_id]
+            task.status = "cancelled"
+            task.result = "Cancelled by user"
         if self.event_bus is not None:
             self.event_bus.emit("background_cancelled", {"task_id": task_id})
         with self._lock:

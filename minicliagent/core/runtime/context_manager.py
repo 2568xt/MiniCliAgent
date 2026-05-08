@@ -46,11 +46,54 @@ class ContextManager:
         if self.history_max_messages is not None and len(prepared) > self.history_max_messages:
             overflow = len(prepared) - self.history_max_messages
             self.last_history_overflow_count = overflow
+
+            # Extract tool calls from the overflow section
+            tool_summary_parts = []
+            for msg in prepared[:-self.history_max_messages]:
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "tool_use":
+                                tool_name = part.get("name", "unknown")
+                                # Get a brief description of the tool call
+                                args = part.get("input", {})
+                                if isinstance(args, dict):
+                                    # Try to extract meaningful info
+                                    arg_parts = []
+                                    for k, v in args.items():
+                                        v_str = str(v)
+                                        if len(v_str) > 50:
+                                            v_str = v_str[:50] + "..."
+                                        arg_parts.append(f"{k}: {v_str}")
+                                    args_str = ", ".join(arg_parts) if arg_parts else "{}"
+                                else:
+                                    args_str = str(args)
+                                tool_summary_parts.append(f"[tool: {tool_name}, args: {args_str}]")
+                elif role == "assistant" and content:
+                    # Text response from assistant
+                    if len(content) > 100:
+                        content = content[:100] + "..."
+                    tool_summary_parts.append(f"[response: {content}]")
+
+            # Build structured summary
+            tool_count = len(tool_summary_parts)
+            if tool_summary_parts:
+                tools_str = ", ".join(tool_summary_parts)
+                summary_content = (
+                    f"<history-summary>Truncated {overflow} message(s). "
+                    f"Tool calls made in this session ({tool_count}): {tools_str}</history-summary>"
+                )
+            else:
+                summary_content = (
+                    f"<history-summary>Truncated {overflow} message(s). "
+                    f"No tool calls in truncated section.</history-summary>"
+                )
+
             prepared = [
-                {
-                    "role": "user",
-                    "content": f"<history-summary>History compacted: {overflow} earlier message(s) summarized.</history-summary>",
-                }
+                {"role": "user", "content": summary_content}
             ] + prepared[-self.history_max_messages :]
 
         return prepared

@@ -96,9 +96,10 @@ class MCPStdioSession:
                     text_parts.append(part.get("text", ""))
             content = "".join(text_parts)
         text = str(content)
-        truncated = len(text) > self.config.max_return_chars
+        original_len = len(text)
+        truncated = original_len > self.config.max_return_chars
         if truncated:
-            text = text[:self.config.max_return_chars]
+            text = text[:self.config.max_return_chars] + f"...[truncated: original {original_len} chars]"
         return MCPToolCallResult(
             content=text,
             is_error=bool(response.get("isError", False)),

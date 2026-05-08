@@ -414,7 +414,8 @@ def test_stdio_session_truncates_large_result(monkeypatch) -> None:
     })
 
     result = session.call_tool('big', {})
-    assert len(result.content) == 10
+    assert result.content.startswith('aaaaaaaaaa')
+    assert result.content.endswith('...[truncated: original 100 chars]')
     assert result.diagnostics['truncated'] is True
     session.close()
 

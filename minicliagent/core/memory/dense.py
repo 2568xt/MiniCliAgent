@@ -87,8 +87,11 @@ def _create_mem0_memory(index_dir: Path) -> Any:
         if hasattr(Memory, "from_config"):
             return Memory.from_config(config)
         return Memory(config=config)
-    except Exception:
-        return Memory()
+    except Exception as primary_exc:
+        try:
+            return Memory()
+        except Exception as fallback_exc:
+            return UnavailableDenseMemoryIndex(reason=f"mem0 unavailable: {primary_exc}, fallback Memory() also failed: {fallback_exc}")
 
 
 def _score_from_item(item: dict) -> float:

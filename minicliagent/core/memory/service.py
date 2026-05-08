@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Protocol
 
 from minicliagent.core.llm.types import ModelRequest
@@ -12,6 +13,15 @@ from minicliagent.core.memory.models import (
 )
 from minicliagent.core.memory.ranker import fuse_memory_results
 from minicliagent.core.memory.store import MarkdownMemoryStore
+
+TOOL_KEYWORD_PATTERNS = [
+    re.compile(r'\bprefer\b'),
+    re.compile(r'\blike\b'),
+    re.compile(r'\buse\b'),
+    re.compile(r'\bavoid\b'),
+    re.compile(r'\bremember\b'),
+    re.compile(r'\bimportant\b'),
+]
 
 
 class DenseMemoryIndex(Protocol):
@@ -207,7 +217,7 @@ class LocalMemorySummarizer:
         for line in transcript.splitlines():
             line = line.strip()
             lower = line.lower()
-            if any(keyword in lower for keyword in ("prefer", "like", "use", "avoid", "remember", "important")):
+            if any(p.search(lower) for p in TOOL_KEYWORD_PATTERNS):
                 if ":" in line:
                     line = line.split(":", 1)[1].strip()
                 candidates.append(line)

@@ -24,13 +24,17 @@ class SkillLoader:
         text = path.read_text()
         if text.startswith("---\n"):
             _, frontmatter, body = text.split("---\n", 2)
-            meta: dict[str, str] = {}
-            for line in frontmatter.strip().splitlines():
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    meta[key.strip()] = value.strip()
-            name = meta.get("name", path.parent.name)
-            description = meta.get("description", "")
+            try:
+                import yaml
+                meta = yaml.safe_load(frontmatter) or {}
+            except Exception:
+                meta = {}
+                for line in frontmatter.strip().splitlines():
+                    if ":" in line:
+                        key, value = line.split(":", 1)
+                        meta[key.strip()] = value.strip()
+            name = meta.get("name", "") or path.parent.name
+            description = meta.get("description", "") or ""
             return name, description, body.strip()
         return path.parent.name, "", text.strip()
 

@@ -95,9 +95,7 @@ def main(
                             break
                         _handle_run_prompt(service, prompt, session_id, stdout)
                 finally:
-                    finalize_session = getattr(service, "finalize_session", None)
-                    if finalize_session is not None:
-                        finalize_session(session_id)
+                    service.finalize_session(session_id)
         elif args.command == "tasks":
             if args.tasks_command == "create":
                 task = service.task_service.create_task(args.subject, args.description)

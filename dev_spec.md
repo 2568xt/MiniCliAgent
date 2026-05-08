@@ -113,6 +113,7 @@ MiniCLIAgent 是一个面向本地开发环境的 Python CLI Agent 项目。
 - `SkillService`
 - `TeamService`
 - `WorktreeService`
+- `MCPService`
 
 #### Core 层
 
@@ -162,6 +163,10 @@ flowchart TD
     TOOLS --> TEAM[team_send / team_inbox]
     TOOLS --> WT[worktree_create / worktree_list]
     TOOLS --> MEM[memory_search]
+    TOOLS --> MCP[MCP Tools via MCPService]
+    APP --> MCPSVC[MCPService]
+    MCPSVC --> MCPSRV[MCP Servers (stdio)]
+    MCPSVC --> REG
 
     RT --> EVENTS[EventBus / Logger / Transcript]
     APP --> STATE[.minicliagent state root]
@@ -178,7 +183,7 @@ flowchart TD
 一次最小运行包含以下步骤：
 
 1. CLI 读取命令与参数
-2. `AgentService` 组装 runtime 和依赖
+2. `AgentService` 组装 runtime、services、MCPService 和依赖
 3. `AgentRuntime` 读取 session 消息
 4. `ContextManager` 准备上下文
 5. `AnthropicProvider` 发起模型请求
@@ -223,18 +228,16 @@ flowchart TD
 - 支持 tool schema 下发
 - 支持 Anthropic 兼容接口
 - 对已知兼容网关做必要的 URL 归一化
-- 支持通过配置接入 MCP 服务器，并将其暴露为可调用工具来源
-- 支持多 MCP 服务器并存接入
-- MCP 服务器可通过 stdio 等明确可控的本地连接方式接入
-- MCP 接入应采用适配层设计，不改变主 provider 的统一请求/响应接口
-- MCP 服务器连接失败、超时或不可用时，应降级为仅保留本地内置工具，不中断主运行时
-- MCP 工具发现结果应转换为统一的 `ToolSpec`，再进入 registry 与 provider adapter
+- 通过 `MCPService` 接入 MCP 服务器，暴露为可调用工具来源
+- 支持多 MCP 服务器并存接入与独立管理
+- MCP 服务器通过 stdio 连接方式接入，由 `core/mcp/transport.py` 负责连接管理
+- MCP 通过适配层实现，不改变主 provider 的统一请求/响应接口
+- MCP 服务器连接失败、超时或不可用时，自动降级为仅保留本地内置工具，不中断主运行时
+- MCP 工具发现结果转换为统一 `ToolSpec`，经 `MCPService.register_tools()` 进入 registry
 
 设计原则：
 
-- 先把 Anthropic-first 路径做好
-- 保留 provider adapter 边界
-- 不为了“未来也许会支持很多家”而提前过度抽象
+- Anthropic-first 路径已落地，provider adapter 边界保留
 - MCP 只作为工具扩展面，不作为 agent 主循环的运行时核心依赖
 
 ### 7.3 ToolRegistry
@@ -253,6 +256,8 @@ flowchart TD
 - 工具声明必须显式包含 `name / description / input_schema / handler`
 - 工具扩展应尽量只通过注册完成
 - 内置工具应按职责拆分到 `core/tools/builtins/`
+- `edit_file` 应支持 `replace_all` 参数控制单次替换或全局替换
+- `bash` 工具必须集成危险命令检测：通过正则匹配 `rm -rf /`、fork bomb、`mkfs`、`dd` 写设备等危险模式，通过词边界正则匹配 `sudo`、`shutdown`、`reboot` 等高危子串，命中即拦截
 - MCP 工具应在注册层完成命名空间隔离、冲突检测与可用性标记
 - MCP 工具名应支持服务器前缀或命名空间前缀，避免与内置工具冲突
 - 外部 MCP 工具不可直接绕过 registry 进入 runtime 执行链路
@@ -266,7 +271,7 @@ flowchart TD
 
 1. 工具结果裁剪
 2. 旧工具结果微压缩
-3. 历史消息压缩
+3. 历史消息压缩（含被截断段落的 tool call 名称与参数摘要注入）
 
 同时保留 working memory，例如：
 
@@ -287,6 +292,7 @@ skill 系统负责从本地工作区发现与加载 `SKILL.md`。
 要求：
 
 - skill 扫描路径为 `<workspace>/skills/**/SKILL.md`
+- SKILL.md frontmatter 优先使用 PyYAML 解析，安装不可用时自动回退手动 key:value 解析
 - 支持 `list_skills`
 - 支持 `load_skill`
 - 支持基础 matcher
@@ -325,7 +331,7 @@ team 系统负责轻量级 agent 间消息与协议。
 
 要求：
 
-- 支持基础 inbox 消息收发
+- 支持基础 inbox 消息收发（两阶段读取协议：read_inbox 将消息移至 staging 文件，ack_inbox 确认后删除，未 ack 的消息在下次读取时恢复，实现崩溃保护）
 - 支持 `request_id`
 - 支持协议消息类型，例如：
   - `shutdown_request / shutdown_response`
@@ -348,6 +354,7 @@ worktree 系统负责把 task 与 git 工作区隔离结合起来。
 - 记录 worktree 元数据
 - 支持 task 与 worktree 双向绑定
 - 支持在指定 worktree 执行命令
+- close 操作必须捕获异常，失败时设置 close_failed 状态并通过事件总线通知，不抛异常中断调用方
 
 约束：
 
@@ -387,6 +394,7 @@ memory 系统负责跨会话长期记忆。
 - 如果 hook 判断没有值得记住的内容，不写入
 - 写入自动追加，不要求用户交互确认
 - 写入内容不应是原始 transcript dump
+- 本地总结器关键词匹配使用词边界正则（`\bprefer\b` 等），避免子串误命中（如 "like" 误匹配 "alike"）
 - 写入前应做基础文本去重，避免明显重复条目
 
 混合检索要求：
@@ -409,6 +417,7 @@ memory 系统负责跨会话长期记忆。
 降级要求：
 
 - mem0 或 dense index 不可用时，应降级到 BM25 检索
+- mem0 初始化配置失败时，应尝试 `Memory()` 空构造作为中间回退，仍失败才最终降级为不可用索引
 - BM25 不可用或记忆文件不存在时，应返回空结果而不是中断 agent 主链路
 - 降级事件应写入 event/log，用户可见错误保持简洁
 
@@ -532,7 +541,10 @@ memory 系统负责跨会话长期记忆。
 - `code_spec.md`：实现状态清单
 - `README.md`：中文首页说明
 - `docs/getting-started/learning-path.md`：学习路径
-- `docs/testing/...`：测试报告
+- `docs/getting-started/`：演示 notebook（coding-demo、engineering-demo、mini-demo）
+- `docs/testing/`：测试报告
+- `docs/resume/`：会话恢复
+- `docs/superpowers/`：高级能力说明
 
 文档目标：
 
@@ -576,15 +588,7 @@ MCP 接入只作为工具扩展能力，不改变本项目的主定位与运行�
 5. 参考实现不等于原型代码，仍需保持工程纪律
 6. MCP 相关实现必须保持可降级、可关闭、可诊断
 
-本项目后续演进应遵守以下约束：
-
-1. 不为了“未来可能需要”而提前引入重抽象
-2. 默认优先可读性和可验证性
-3. 新增功能优先沿用现有分层与模式
-4. 用户可见错误必须尽量简洁、明确
-5. 参考实现不等于原型代码，仍需保持工程纪律
-
-## 13. 当前阶段结论
+## 14. 当前阶段结论
 
 当前版本的开发方向应保持为：
 

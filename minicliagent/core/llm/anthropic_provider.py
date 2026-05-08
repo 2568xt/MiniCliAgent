@@ -10,7 +10,7 @@ from minicliagent.core.llm.types import ModelRequest, ModelResponse, TextDeltaCa
 class AnthropicProvider:
     def __init__(self, model: str, base_url: str | None = None) -> None:
         self.model = model
-        self.client = Anthropic(base_url=_normalize_base_url(base_url))
+        self.client = Anthropic(base_url=_normalize_minimax_base_url(base_url))
 
     def create_response(
         self,
@@ -55,7 +55,7 @@ def _model_response_from_message(raw_message) -> ModelResponse:
     )
 
 
-def _normalize_base_url(base_url: str | None) -> str | None:
+def _normalize_minimax_base_url(base_url: str | None) -> str | None:
     if not base_url:
         return base_url
 
