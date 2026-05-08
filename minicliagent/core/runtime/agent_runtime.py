@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 
 from minicliagent.core.llm.tool_adapter import tool_specs_to_anthropic
-from minicliagent.core.llm.types import ModelRequest, TextDeltaCallback
+from minicliagent.core.llm.types import ModelRequest, TextDeltaCallback, ToolCallCallback
 from minicliagent.core.runtime.background_manager import BackgroundManager
 from minicliagent.core.runtime.context_manager import ContextManager
 from minicliagent.core.runtime.event_bus import EventBus
@@ -53,6 +53,7 @@ class AgentRuntime:
         session_id: str,
         user_input: str | None = None,
         on_text_delta: TextDeltaCallback | None = None,
+        on_tool_call: ToolCallCallback | None = None,
     ) -> RuntimeTurnResult:
         messages = self.message_store.get(session_id)
         if user_input:
@@ -105,6 +106,8 @@ class AgentRuntime:
                 return RuntimeTurnResult(output_text=response.text, messages=list(messages))
 
             for call in response.tool_calls:
+                if on_tool_call is not None:
+                    on_tool_call(call.name, call.input)
                 if self.event_bus is not None:
                     self.event_bus.emit("tool_call", {"name": call.name, "session_id": session_id})
                 if self.logger is not None:

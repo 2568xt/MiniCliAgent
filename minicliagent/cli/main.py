@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Send one prompt or start an interactive session.")
     run_parser.add_argument("--prompt")
     run_parser.add_argument("--session")
+    run_parser.add_argument("--tui", action="store_true", help="Use the Textual TUI for interactive sessions.")
 
     tasks_parser = subparsers.add_parser("tasks", help="Manage persistent tasks.")
     tasks_subparsers = tasks_parser.add_subparsers(dest="tasks_command", required=True)
@@ -80,7 +81,10 @@ def main(
             session_id = args.session or _generate_session_id(service.settings.sessions_dir)
             if args.session is None:
                 print(f"Session: {session_id}", file=stdout)
-            if args.prompt is not None:
+            if args.tui:
+                from minicliagent.tui.app import run_tui
+                run_tui(service, session_id, prompt=args.prompt)
+            elif args.prompt is not None:
                 _handle_run_prompt(service, args.prompt, session_id, stdout)
             else:
                 try:

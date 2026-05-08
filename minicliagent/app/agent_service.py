@@ -12,10 +12,11 @@ from minicliagent.app.team_service import TeamService
 from minicliagent.app.worktree_service import WorktreeService
 from minicliagent.core.config.settings import Settings
 from minicliagent.core.llm.anthropic_provider import AnthropicProvider
-from minicliagent.core.llm.types import TextDeltaCallback
+from minicliagent.core.llm.types import TextDeltaCallback, ToolCallCallback
 from minicliagent.core.memory.dense import Mem0DenseMemoryIndex, UnavailableDenseMemoryIndex
 from minicliagent.core.memory.service import MemoryService, ProviderMemorySummarizer
 from minicliagent.core.memory.store import MarkdownMemoryStore
+from minicliagent.core.memory.watcher import MemoryFileWatcher
 from minicliagent.core.mcp import MCPService
 from minicliagent.core.runtime.agent_runtime import AgentRuntime
 from minicliagent.core.runtime.background_manager import BackgroundManager
@@ -28,7 +29,7 @@ from minicliagent.core.tasks.board import TaskBoard
 from minicliagent.core.tools.builtins.background import background_check_tool, background_run_tool
 from minicliagent.core.tools.builtins.bash import run_bash_command
 from minicliagent.core.tools.builtins.files import edit_text_file, read_text_file, write_text_file
-from minicliagent.core.tools.builtins.memory import memory_search_tool
+from minicliagent.core.tools.builtins.memory import memory_get_tool, memory_search_tool
 from minicliagent.core.tools.builtins.skills import list_skills_tool, load_skill_tool
 from minicliagent.core.tools.builtins.tasks import task_create_tool, task_list_tool, task_update_tool
 from minicliagent.core.tools.builtins.team import team_inbox_tool, team_send_tool
@@ -49,9 +50,10 @@ class AgentService:
     team_service: TeamService
     worktree_service: WorktreeService
     memory_service: MemoryService | None = None
+    memory_file_watcher: MemoryFileWatcher | None = None
 
-    def run_prompt(self, prompt: str, session_id: str = "default", on_text_delta: TextDeltaCallback | None = None) -> str:
-        return self.runtime.run_turn(session_id=session_id, user_input=prompt, on_text_delta=on_text_delta).output_text
+    def run_prompt(self, prompt: str, session_id: str = "default", on_text_delta: TextDeltaCallback | None = None, on_tool_call: ToolCallCallback | None = None) -> str:
+        return self.runtime.run_turn(session_id=session_id, user_input=prompt, on_text_delta=on_text_delta, on_tool_call=on_tool_call).output_text
 
     def finalize_session(self, session_id: str) -> None:
         if self.memory_service is None:
@@ -59,6 +61,11 @@ class AgentService:
         messages = self.runtime.message_store.get(session_id)
         if messages:
             self.memory_service.remember_session(session_id, messages, "exit_hook")
+
+    def stop(self) -> None:
+        """Stop all background services including the memory file watcher."""
+        if self.memory_file_watcher is not None:
+            self.memory_file_watcher.stop()
 
 
 def create_agent_service(env: dict[str, str] | None = None) -> AgentService:
@@ -87,13 +94,15 @@ def create_agent_service(env: dict[str, str] | None = None) -> AgentService:
     provider = AnthropicProvider(model=settings.model, base_url=merged_env.get("ANTHROPIC_BASE_URL") or None)
 
     memory_service = None
+    memory_file_watcher = None
     if settings.memory_enabled:
         try:
             dense_index = Mem0DenseMemoryIndex(settings.memory_index_dir)
         except Exception:
             dense_index = UnavailableDenseMemoryIndex()
+        memory_store = MarkdownMemoryStore(settings.memory_summary_path, settings.memory_dir)
         memory_service = MemoryService(
-            store=MarkdownMemoryStore(settings.memory_summary_path, settings.memory_dir),
+            store=memory_store,
             dense_index=dense_index,
             dense_weight=settings.memory_dense_weight,
             bm25_weight=settings.memory_bm25_weight,
@@ -102,7 +111,14 @@ def create_agent_service(env: dict[str, str] | None = None) -> AgentService:
             final_top_k=settings.memory_final_top_k,
             summarizer=ProviderMemorySummarizer(provider, logger=logger),
             logger=logger,
+            decay_half_life_days=settings.memory_decay_half_life_days,
         )
+        memory_file_watcher = MemoryFileWatcher(
+            summary_path=settings.memory_summary_path,
+            fragments_dir=settings.memory_dir,
+            on_change=lambda: memory_service.remember_session("file_watcher", [], "file_change"),
+        )
+        memory_file_watcher.start()
 
     registry = ToolRegistry()
     team_service, worktree_service = _register_builtin_tools(registry, settings, skill_loader, task_board, background_manager, team_bus, repo_root, worktree_manager, event_bus, logger)
@@ -110,11 +126,12 @@ def create_agent_service(env: dict[str, str] | None = None) -> AgentService:
     mcp_service.register_tools(registry)
     if memory_service is not None:
         registry.register(ToolSpec(name="memory_search", description="Search long-term memory.", input_schema={"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}, handler=lambda query: memory_search_tool(memory_service, query), tags={"builtin", "memory"}))
+        registry.register(ToolSpec(name="memory_get", description="Get a specific memory document by source_id.", input_schema={"type": "object", "properties": {"source_id": {"type": "string"}}, "required": ["source_id"]}, handler=lambda source_id: memory_get_tool(memory_service, source_id), tags={"builtin", "memory"}))
 
     runtime = AgentRuntime(provider=provider, tool_registry=registry, system_prompt="You are MiniCLIAgent, a local coding agent.", message_store=FileMessageStore(settings.sessions_dir), background_manager=background_manager, event_bus=event_bus, logger=logger, transcript_recorder=transcript_recorder)
     task_service = TaskService(board=task_board)
     skill_service = SkillService(loader=skill_loader, matcher=skill_matcher, max_skill_chars=4000)
-    return AgentService(settings=settings, runtime=runtime, task_service=task_service, skill_service=skill_service, team_bus=team_bus, team_service=team_service, worktree_service=worktree_service, memory_service=memory_service)
+    return AgentService(settings=settings, runtime=runtime, task_service=task_service, skill_service=skill_service, team_bus=team_bus, team_service=team_service, worktree_service=worktree_service, memory_service=memory_service, memory_file_watcher=memory_file_watcher)
 
 
 def _register_builtin_tools(registry, settings, skill_loader, task_board, background_manager, team_bus, repo_root, worktree_manager, event_bus, logger):

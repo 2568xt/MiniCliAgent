@@ -19,6 +19,7 @@ class MemoryDocument:
     source: str
     content: str
     metadata: dict[str, str] = field(default_factory=dict)
+    line_number: int | None = None
 
 
 @dataclass(frozen=True)

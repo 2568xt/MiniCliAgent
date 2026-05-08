@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 
 TextDeltaCallback = Callable[[str], None]
+ToolCallCallback = Callable[[str, dict], None]
 
 
 @dataclass

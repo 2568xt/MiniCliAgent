@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, UTC
+from pathlib import Path
 from typing import Protocol
 
 from minicliagent.core.llm.types import ModelRequest
@@ -11,7 +13,7 @@ from minicliagent.core.memory.models import (
     MemoryDocument,
     MemorySearchDiagnostics,
 )
-from minicliagent.core.memory.ranker import fuse_memory_results
+from minicliagent.core.memory.ranker import fuse_memory_results, mmr_diversify
 from minicliagent.core.memory.store import MarkdownMemoryStore
 
 TOOL_KEYWORD_PATTERNS = [
@@ -49,6 +51,9 @@ class MemoryService:
         final_top_k: int,
         summarizer: MemorySummarizer | None = None,
         logger=None,
+        mmr_lambda: float = 0.5,
+        mmr_enabled: bool = True,
+        decay_half_life_days: int = 30,
     ) -> None:
         self.store = store
         self.dense_index = dense_index
@@ -59,6 +64,9 @@ class MemoryService:
         self.final_top_k = final_top_k
         self.summarizer = summarizer
         self.logger = logger
+        self.mmr_lambda = mmr_lambda
+        self.mmr_enabled = mmr_enabled
+        self.decay_half_life_days = decay_half_life_days
         self.last_search_diagnostics = MemorySearchDiagnostics(
             dense_available=True,
             dense_fallback=False,
@@ -90,6 +98,9 @@ class MemoryService:
             bm25_weight=self.bm25_weight,
             final_top_k=self.final_top_k,
         )
+        if self.mmr_enabled and len(results) > 1:
+            results = mmr_diversify(results, lambda_param=self.mmr_lambda, top_k=self.final_top_k)
+        results = self._apply_time_decay(results)
         retriever: list[str] = []
         if dense_available:
             retriever.append("dense")
@@ -116,6 +127,51 @@ class MemoryService:
                 final_hits=len(results),
             )
         return results
+
+
+    def _apply_time_decay(self, results: list[HybridMemoryResult]) -> list[HybridMemoryResult]:
+        if self.decay_half_life_days <= 0 or not results:
+            return results
+        now = datetime.now(UTC)
+        decayed: list[HybridMemoryResult] = []
+        for result in results:
+            created_at_str = result.document.metadata.get("created_at")
+            if not created_at_str:
+                path_str = result.document.metadata.get("path")
+                if path_str:
+                    try:
+                        p = Path(path_str)
+                        if p.exists():
+                            age_days = (now.timestamp() - p.stat().st_mtime) / 86400
+                        else:
+                            age_days = 0.0
+                    except (OSError, ValueError) as exc:
+                        if self.logger is not None:
+                            self.logger.log("warning", "memory_decay_path_error", path=path_str, error=str(exc))
+                        age_days = 0.0
+                else:
+                    age_days = 0.0
+            else:
+                try:
+                    created = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=UTC)
+                    age_days = (now - created).total_seconds() / 86400
+                except (ValueError, TypeError) as exc:
+                    if self.logger is not None:
+                        self.logger.log("warning", "memory_decay_parse_error", created_at=created_at_str, error=str(exc))
+                    age_days = 0.0
+            decay_factor = (0.5) ** (age_days / self.decay_half_life_days)
+            decayed_result = HybridMemoryResult(
+                document=result.document,
+                score=result.score * decay_factor,
+                dense_score=result.dense_score,
+                bm25_score=result.bm25_score,
+                normalized_dense=result.normalized_dense,
+                normalized_bm25=result.normalized_bm25,
+            )
+            decayed.append(decayed_result)
+        return sorted(decayed, key=lambda r: (-r.score, r.source_id))
 
     def remember_session(
         self,

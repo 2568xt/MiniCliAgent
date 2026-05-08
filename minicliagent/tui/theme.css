@@ -1,0 +1,63 @@
+Screen {
+    background: #1a1b26;
+}
+
+Header {
+    background: #3d59a1;
+    color: #e0e0e0;
+    dock: top;
+    height: 1;
+}
+
+#conversation {
+    width: 2fr;
+    height: 1fr;
+    border: solid #414868;
+    background: #1f2335;
+    overflow-y: auto;
+}
+
+#conversation Static {
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+    color: #c0caf5;
+}
+
+#toollog {
+    width: 1fr;
+    height: 1fr;
+    border: solid #414868;
+    background: #1a1b26;
+    max-width: 50;
+}
+
+#thinking {
+    height: 1;
+    content-align: left middle;
+    color: #7aa2f7;
+    text-style: italic;
+    background: #1a1b26;
+    padding: 0 1;
+}
+
+#input-area {
+    dock: bottom;
+    height: 3;
+    border: solid #3d59a1;
+    background: #24283b;
+}
+
+Input {
+    background: #24283b;
+    color: #c0caf5;
+    border: none;
+}
+
+Input:focus {
+    border: solid #7aa2f7;
+}
+
+VerticalScroll {
+    scrollbar-size-vertical: 1;
+}

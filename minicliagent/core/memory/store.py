@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 from minicliagent.core.memory.models import MemoryAppendResult, MemoryDocument, MemoryEntry
@@ -23,7 +23,7 @@ class MarkdownMemoryStore:
         if not clean_entries:
             return MemoryAppendResult(written=False)
 
-        created_at = created_at or datetime.utcnow().replace(microsecond=0).isoformat()
+        created_at = created_at or datetime.now(UTC).replace(microsecond=0).isoformat()
         memory_entries = [
             MemoryEntry(
                 content=entry,
@@ -86,6 +86,47 @@ class MarkdownMemoryStore:
                         },
                     )
                 )
+        return documents
+
+    def read_line_documents(self) -> list[MemoryDocument]:
+        documents: list[MemoryDocument] = []
+
+        if self.summary_path.exists():
+            lines = self.summary_path.read_text(encoding="utf-8").splitlines()
+            for line_num, line in enumerate(lines, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                documents.append(MemoryDocument(
+                    source_id=self.summary_path.name,
+                    source="summary",
+                    content=line,
+                    metadata={"path": str(self.summary_path)},
+                    line_number=line_num,
+                ))
+
+        if self.fragments_dir.exists():
+            for path in sorted(self.fragments_dir.glob("*.md")):
+                text = path.read_text(encoding="utf-8")
+                # Parse frontmatter once per file (not per line)
+                file_meta = {
+                    "path": str(path),
+                    "source": _metadata_value(text, "source"),
+                    "session_id": _metadata_value(text, "session_id"),
+                    "created_at": _metadata_value(text, "created_at"),
+                }
+                lines = text.splitlines()
+                for line_num, line in enumerate(lines, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    documents.append(MemoryDocument(
+                        source_id=path.name,
+                        source="fragment",
+                        content=line,
+                        metadata=dict(file_meta),
+                        line_number=line_num,
+                    ))
         return documents
 
 

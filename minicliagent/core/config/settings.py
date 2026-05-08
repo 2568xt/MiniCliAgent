@@ -25,6 +25,7 @@ class Settings:
     memory_dense_top_k: int
     memory_bm25_top_k: int
     memory_final_top_k: int
+    memory_decay_half_life_days: int
     mcp_servers: list[MCPServerConfig]
 
     @classmethod
@@ -49,6 +50,7 @@ class Settings:
             memory_dense_top_k=int(env.get("MINICLIAGENT_MEMORY_DENSE_TOP_K", "4")),
             memory_bm25_top_k=int(env.get("MINICLIAGENT_MEMORY_BM25_TOP_K", "4")),
             memory_final_top_k=int(env.get("MINICLIAGENT_MEMORY_FINAL_TOP_K", "6")),
+            memory_decay_half_life_days=int(env.get("MINICLIAGENT_MEMORY_DECAY_HALF_LIFE_DAYS", "30")),
             mcp_servers=_parse_mcp_servers(env.get("MINICLIAGENT_MCP_SERVERS", "")),
         )
 
