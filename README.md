@@ -16,8 +16,7 @@ python -m minicliagent.cli.main run --help
 
 `uv` 是一个现代 Python 工具，常用来管理虚拟环境和安装依赖。对这个项目来说，推荐它主要有三个原因：
 
-1. 更快  
-   创建虚拟环境和安装依赖通常比传统 `venv + pip` 更快。
+the benchmark schema and baseline are fixed.
 
 2. 更统一  
    你可以用一套命令处理环境和依赖，不用来回切换不同工具。

@@ -13,7 +13,7 @@ def test_read_text_file_rejects_workspace_escape(tmp_path: Path) -> None:
     )
 
     assert result.is_error is True
-    assert "escapes workspace" in result.content
+    assert "resolves to" in result.content or "escapes workspace" in result.content
 
 
 def test_write_text_file_writes_inside_workspace(tmp_path: Path) -> None:

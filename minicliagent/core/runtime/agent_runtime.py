@@ -115,18 +115,32 @@ class AgentRuntime:
                 result = self.tool_registry.execute(call.name, call.input)
                 if call.name == "load_skill" and not result.is_error:
                     self.loaded_skills.setdefault(session_id, []).append(call.input["name"])
+                tool_result_content: list[str | dict] = [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": call.id,
+                        "content": result.content,
+                        "is_error": result.is_error,
+                    }
+                ]
+                # Inject mandatory recovery instruction when tool returned an error.
+                # This forces the model to address the error rather than ignoring it
+                # and claiming success (hallucination guard).
+                if result.is_error:
+                    recovery_hint = (
+                        f"\n\n[TOOL ERROR — is_error=True] "
+                        f"Tool '{call.name}' failed: {result.content[:500]}. "
+                        f"You MUST fix this error before claiming the task is done. "
+                        f"Do NOT say 'Done!' or 'Task complete' while an error is unresolved."
+                    )
+                    tool_result_content.append(
+                        {"type": "text", "text": recovery_hint}
+                    )
                 self.message_store.append(
                     session_id,
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": call.id,
-                                "content": result.content,
-                                "is_error": result.is_error,
-                            }
-                        ],
+                        "content": tool_result_content,
                     },
                 )
                 messages = self.message_store.get(session_id)

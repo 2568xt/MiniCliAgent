@@ -596,4 +596,154 @@ MCP 接入只作为工具扩展能力，不改变本项目的主定位与运行�
 - 一个通过 `skills / tasks / background / team / worktree` 展示 agent harness 设计的实践项目
 - 一个可作为本地 agent harness 参考实现的工程项目
 
-后续所有实现工作，均应以本规格作为边界，而不是继续向无上限的“大而全 agent 平台”扩张。
+后续所有实现工作，均应以本规格作为边界，而不是继续向无上限的”大而全 agent 平台”扩张。
+
+## 15. Sandbox 系统
+
+### 15.1 设计目标
+
+Sandbox 系统为 ShellRunner 提供 OS 级轻量沙箱，解决当前纯 regex 危险命令检测易被绕过的问题。
+
+核心目标：
+
+1. **防止 prompt injection 通过 shell 命令泄露数据或破坏系统**
+2. **OS 级能力边界**（filesystem + network），不依赖静态分析
+3. **轻量快速启动**，无需完整容器镜像，启动开销控制在 100ms 以内
+
+Sandbox 是对 regex 检测的补充而非替代：regex 作为首道快速防线拦截明显危险命令，sandbox 作为 OS 级兜底限制命令的实际破坏范围。
+
+### 15.2 后端架构
+
+采用插件化后端注册表模式（`PluginBackendFactory`），支持按平台自动选择后端。
+
+```
+SandboxBackend (ABC)
+├── BubblewrapBackend     # Linux
+├── SandboxExecBackend     # macOS
+└── DisabledBackend        # 降级 / Windows
+```
+
+**后端注册表（`infra/sandbox/backend.py`）：**
+
+- 定义 `SandboxBackend` 抽象基类，接口包括 `wrap(command, config) -> list[str]` 和 `cleanup() -> None`
+- 提供 `get_backend(name: str) -> SandboxBackend` 工厂方法
+- 提供 `detect_backend() -> str` 自动检测：检查 `bwrap` / `sandbox-exec` 是否在 PATH 中
+
+**支持的后端：**
+
+| 后端 | 平台 | 底层机制 |
+|-------|------|----------|
+| `bubblewrap` | Linux | bubblewrap + seccomp（用户命名空间隔离，无需 root） |
+| `sandbox_exec` | macOS | sandbox-exec（Seatbelt profile，`.sb` 配置文件） |
+| `disabled` | 任意 | 空操作，命令原样通过（仅保留 regex 检测） |
+
+**默认白名单规则（所有后端通用）：**
+
+- **文件系统可写**：当前工作目录（`cwd`）、Claude 临时目录（`temp_dir`）
+- **文件系统只读**：`/usr`、`/lib`、`/lib64`、`/bin`、`/System/Library`（macOS）
+- **默认禁止**：`/etc`、`/boot`、`/root`、`/home` 下非当前用户目录、`~/.ssh`、`~/.gnupg`
+- **危险路径额外 deny**：`settings.json`、`.claude/skills`、git bare repo 目录（`.git` 内的 objects/refs 禁止直接写入）
+- **网络白名单**：默认仅允许 localhost（`127.0.0.1`、`::1`、`localhost`），外部网络需显式配置
+
+### 15.3 SandboxConfig 配置项
+
+```python
+@dataclass(frozen=True)
+class SandboxConfig:
+    enabled: bool = True
+    backend: str = “”                    # “bubblewrap” / “sandbox_exec” / “disabled”，空字符串表示自动检测
+    allowed_dirs: tuple[Path, ...] = ()   # 默认 [cwd, temp_dir]，运行时由 ShellRunner 注入
+    denied_paths: tuple[Path, ...] = ()   # 默认含系统路径，运行时由 ShellRunner 注入
+    allowed_domains: tuple[str, ...] = () # 默认 (“localhost”,)，即仅允许 127.0.0.1/::1
+    auto_allow_sandboxed: bool = True     # 沙箱内命令减少弹窗
+```
+
+**环境变量映射（`MINICLIAGENT_SANDBOX_*`）：**
+
+| 环境变量 | 类型 | 默认值 | 说明 |
+|---------|------|--------|------|
+| `MINICLIAGENT_SANDBOX_ENABLED` | bool | `1` | 是否启用沙箱 |
+| `MINICLIAGENT_SANDBOX_BACKEND` | str | `””` | 后端名称，空为自动检测 |
+| `MINICLIAGENT_SANDBOX_ALLOWED_DIRS` | str | `””` | 额外允许目录，`:` 分隔 |
+| `MINICLIAGENT_SANDBOX_DENIED_PATHS` | str | `””` | 额外禁止路径，`:` 分隔 |
+| `MINICLIAGENT_SANDBOX_ALLOWED_DOMAINS` | str | `””` | 允许的外部域名，`,` 分隔 |
+| `MINICLIAGENT_SANDBOX_AUTO_ALLOW` | bool | `1` | 沙箱内命令是否自动放行 |
+
+配置优先级：环境变量 > `SandboxConfig` 默认值。运行时 `allowed_dirs` 和 `denied_paths` 由 `ShellRunner` 将 `SandboxConfig` 与 `cwd`、`temp_dir` 合并后注入后端。
+
+### 15.4 ShellRunner 集成
+
+`ShellRunner` 需要新增三个方法：
+
+```python
+class ShellRunner:
+    def should_use_sandbox(self, command: str) -> bool:
+        “””判断命令是否进入沙箱：sandbox enabled 且后端可用且非纯内置命令。”””
+
+    def wrap_with_sandbox(self, command: str) -> list[str]:
+        “””将 shell 命令包裹为 sandbox 命令，返回可传给 subprocess 的 args list。”””
+
+    def cleanup_after_command(self) -> None:
+        “””清理沙箱残留（临时挂载点、命名空间等）。”””
+```
+
+**`run()` 方法修改流程：**
+
+1. `is_dangerous(command)` — regex 首道防线（保持不变）
+2. `should_use_sandbox(command)` — 判断是否需要沙箱包裹
+3. 若需要：`wrap_with_sandbox(command)` → 用 sandbox 命令执行
+4. 若不需要：直接 `subprocess.run(command, shell=True)`（兼容旧行为）
+5. `cleanup_after_command()` — 每次命令后清理
+
+**降级策略：**
+
+- `SandboxConfig.enabled = False` → 跳过 sandbox，仅保留 regex
+- 后端自动检测失败 → 降级到 `disabled` 后端，记录 warning 日志
+- 后端返回非零退出码且为 sandbox 自身错误 → 记录 error，命令结果返回 `is_error=True`
+- Windows 平台：无原生 sandbox 后端 → 始终降级到 regex
+
+### 15.5 权限联动
+
+Sandbox 与权限系统联动，减少用户在安全场景下的弹窗疲劳。
+
+**联动规则：**
+
+| 条件 | 行为 |
+|------|------|
+| sandbox 启用 + `auto_allow_sandboxed=True` + 低风险命令 | 自动放行，不弹确认窗 |
+| sandbox 启用 + 高风险命令 | 保持 `ask`，无论是否 sandboxed |
+| sandbox 不可用 | 回退到原有权限逻辑（高风险弹窗） |
+
+**低风险命令定义：** 不涉及 `sudo`、`shutdown`、`reboot`，不写入 `/dev/sd*`，不在 `denied_paths` 范围内，且 sandbox 已限制文件系统和网络访问。
+
+### 15.6 平台差异
+
+| 平台 | 状态 | 后端 | 说明 |
+|------|------|------|------|
+| **Linux** | 完全支持 | `bubblewrap` | 需要 `bwrap` 命令在 PATH 中；使用 `--unshare-user --unshare-net` 等参数；通过 `--bind` / `--tmpfs` 控制文件系统可见性；seccomp 通过 bubblewrap 内置机制启用 |
+| **macOS** | 完全支持 | `sandbox_exec` | 需要 `sandbox-exec` 命令（系统自带）；通过 `.sb` Seatbelt profile 配置文件控制；profile 文件写入临时目录，命令执行后清理 |
+| **Windows** | 降级 | `disabled` | 无原生轻量沙箱机制，降级到纯 regex 模式；不推荐在生产中使用 |
+
+**依赖检测：**
+
+- 启动时调用 `detect_backend()` 检查后端依赖
+- 不可用时自动降级到 `disabled`，记录 warning：`”Sandbox backend '{name}' not available: {reason}. Falling back to regex-only mode.”`
+- 用户可通过 `MINICLIAGENT_SANDBOX_BACKEND=disabled` 显式关闭
+
+### 15.7 实现文件清单
+
+| 文件 | 职责 |
+|------|------|
+| `infra/sandbox/__init__.py` | 模块入口，导出 `SandboxBackend`、`SandboxConfig`、`get_backend`、`detect_backend` |
+| `infra/sandbox/backend.py` | `SandboxBackend` ABC 定义、后端注册表、工厂方法和自动检测逻辑 |
+| `infra/sandbox/bubblewrap_backend.py` | Linux bubblewrap 实现：生成 bwrap 参数列表，处理 bind mount、tmpfs、网络隔离 |
+| `infra/sandbox/sandbox_exec_backend.py` | macOS sandbox-exec 实现：生成 `.sb` Seatbelt profile，处理文件系统和网络规则 |
+| `infra/sandbox/config.py` | `SandboxConfig` dataclass 定义与环境变量解析（`from_env()`） |
+| `infra/shell/runner.py` | 集成 sandbox：新增 `should_use_sandbox()`、`wrap_with_sandbox()`、`cleanup_after_command()`，修改 `run()` 流程 |
+| `core/config/settings.py` | `Settings` 新增 `sandbox: SandboxConfig` 字段 |
+
+### 15.8 测试要求
+
+1. **Unit Tests**：各后端 `wrap()` 生成的命令参数格式正确；`SandboxConfig.from_env()` 解析正确；`detect_backend()` 在依赖可用/不可用时的行为
+2. **Integration Tests**：`ShellRunner.run()` 在 sandbox enabled/disabled 下的命令执行路径；sandbox 降级链路；禁止路径的写入被正确拦截；localhost 网络可访问、外部网络被阻断
+3. **Live Tests**（仅 Linux/macOS）：真实 bwrap/sandbox-exec 执行；文件系统隔离实际生效

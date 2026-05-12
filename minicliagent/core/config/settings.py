@@ -27,6 +27,11 @@ class Settings:
     memory_final_top_k: int
     memory_decay_half_life_days: int
     mcp_servers: list[MCPServerConfig]
+    sandbox_enabled: bool
+    sandbox_backend: str
+    sandbox_allowed_dirs: tuple[Path, ...]
+    sandbox_denied_paths: tuple[Path, ...]
+    sandbox_auto_allow: bool
 
     @classmethod
     def from_env(cls, env: dict[str, str]) -> "Settings":
@@ -52,6 +57,17 @@ class Settings:
             memory_final_top_k=int(env.get("MINICLIAGENT_MEMORY_FINAL_TOP_K", "6")),
             memory_decay_half_life_days=int(env.get("MINICLIAGENT_MEMORY_DECAY_HALF_LIFE_DAYS", "30")),
             mcp_servers=_parse_mcp_servers(env.get("MINICLIAGENT_MCP_SERVERS", "")),
+            sandbox_enabled=_env_bool(env.get("MINICLIAGENT_SANDBOX_ENABLED", "1")),
+            sandbox_backend=env.get("MINICLIAGENT_SANDBOX_BACKEND", "").strip(),
+            sandbox_allowed_dirs=tuple(
+                Path(p) for p in env.get("MINICLIAGENT_SANDBOX_ALLOWED_DIRS", "").split(":")
+                if p.strip()
+            ),
+            sandbox_denied_paths=tuple(
+                Path(p) for p in env.get("MINICLIAGENT_SANDBOX_DENIED_PATHS", "").split(":")
+                if p.strip()
+            ),
+            sandbox_auto_allow=_env_bool(env.get("MINICLIAGENT_SANDBOX_AUTO_ALLOW", "1")),
         )
 
 
